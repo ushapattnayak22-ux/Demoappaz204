@@ -15,16 +15,38 @@ jobs:
       - name: setup SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '7.x'
+          dotnet-version: '8.x'
       
       - name: Restore
         run: dotnet restore
-        
+      
+      # dotnet build actually produces
+      # Produces:
+      # .dll / .exe
+      # .pdb
+      # Intermediate files 
       - name: Build
         run: dotnet build
 
-      - name: Pack
+      # 1️⃣ PACK: Create the NuGet package (.nupkg)
+      # This converts the built project into a distributable artifact
+      - name: Pack NuGet package
         run: dotnet pack --output ./nupkg
 
-      - name: Publish Package
-        run: dotnet nuget push "./nupkg/*.nupkg" --source "https://nuget.pkg.github.com/ibnehussain/index.json" --api-key ${{ secrets.GITHUB_TOKEN }}
+      # 2️⃣ COLLECT ARTIFACT: Store the package inside GitHub Actions
+      # This is optional, but useful to:
+      # - Download the package
+      # - Share it with another job
+      # - Debug CI output
+      - name: Upload package as CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: ./nupkg
+
+      # 3️⃣ PUBLISH PACKAGE: Push the package to GitHub Packages (NuGet registry)
+      # This makes the package available for consumption via `dotnet add package`
+      - name: Publish package to GitHub Packages
+        run: dotnet nuget push "./nupkg/*.nupkg" \
+            --source "https://nuget.pkg.github.com/ibnehussain/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }}
