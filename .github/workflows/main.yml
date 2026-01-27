@@ -1,51 +1,76 @@
-name: Starter Pipeline #Worflow name
+name: Starter Pipeline # Workflow name
 
-on: 
-- push #trigger
-- workflow_dispatch #manual
+on:
+  - push                # trigger on push
+  - workflow_dispatch   # manual trigger
 
-jobs: 
+# 1️⃣ WORKFLOW-LEVEL ENV VARIABLES
+env:
+  DOTNET_VERSION: '8.x'
+  PACKAGE_OUTPUT: ./nupkg
+
+jobs:
   Build:
-    runs-on: ubuntu-latest #runner
+    runs-on: ubuntu-latest # runner
+
+    # 2️⃣ JOB-LEVEL ENV VARIABLES
+    env:
+      BUILD_CONFIGURATION: Release
 
     steps:
+      # 3️⃣ CONTEXT VARIABLES (github.*)
+      - name: Show GitHub context
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Branch: ${{ github.ref_name }}"
+
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: setup SDK
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
-      
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
       - name: Restore
         run: dotnet restore
-      
-      # dotnet build actually produces
-      # Produces:
-      # .dll / .exe
-      # .pdb
-      # Intermediate files 
+
+      # dotnet build produces:
+      # - .dll / .exe
+      # - .pdb
+      # - intermediate files
       - name: Build
-        run: dotnet build
+        run: dotnet build --configuration $BUILD_CONFIGURATION
 
-      # 1️⃣ PACK: Create the NuGet package (.nupkg)
-      # This converts the built project into a distributable artifact
+      # 4️⃣ STEP OUTPUT VARIABLE
+      - name: Set package version
+        id: version
+        run: echo "version=1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      # 5️⃣ PACK: Create NuGet package (.nupkg)
       - name: Pack NuGet package
-        run: dotnet pack --output ./nupkg
+        run: |
+          dotnet pack \
+            --configuration $BUILD_CONFIGURATION \
+            --output $PACKAGE_OUTPUT \
+            /p:Version=${{ steps.version.outputs.version }}
 
-      # 2️⃣ COLLECT ARTIFACT: Store the package inside GitHub Actions
-      # This is optional, but useful to:
-      # - Download the package
-      # - Share it with another job
-      # - Debug CI output
+      # 6️⃣ COLLECT ARTIFACT
       - name: Upload package as CI artifact
         uses: actions/upload-artifact@v4
         with:
           name: nuget-package
-          path: ./nupkg
+          path: ${{ env.PACKAGE_OUTPUT }}
 
-      # 3️⃣ PUBLISH PACKAGE: Push the package to GitHub Packages (NuGet registry)
-      # This makes the package available for consumption via `dotnet add package`
-      # To skip already published packages, use the option --skip-duplicate
+      # 7️⃣ CONFIGURATION VARIABLE (vars)
+      - name: Show repo variable
+        run: echo "NuGet feed is ${{ vars.NUGET_FEED_URL }}"
+
+      # 8️⃣ SECRET VARIABLE (secrets)
       - name: Publish package to GitHub Packages
-        run: dotnet nuget push "./nupkg/*.nupkg" --source "https://nuget.pkg.github.com/ibnehussain/index.json" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+        run: |
+          dotnet nuget push "${{ env.PACKAGE_OUTPUT }}/*.nupkg" \
+            --source "${{ vars.NUGET_FEED_URL }}" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
