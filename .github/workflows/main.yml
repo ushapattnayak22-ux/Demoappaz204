@@ -22,7 +22,7 @@ jobs:
         uses: docker/login-action@v3.7.0
         with:
           registry: ghcr.io
-          username: ${{github.actor}}
+          username: ${{ github.actor }}
           password: ${{secrets.GITHUB_TOKEN}}
 
       - name: Build and Push to GHCR
@@ -31,7 +31,7 @@ jobs:
           context: .
           file: Demoappaz204/Dockerfile
           push: true
-          tags: demoapp:latest
+          tags: ghcr.io/${{github.repository_owner}}/demoappaz204:latest
       
 
 
